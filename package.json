@@ -1,7 +1,7 @@
 {
   "name": "sw-exporter",
   "productName": "Summoners War Exporter",
-  "version": "0.0.62",
+  "version": "0.0.62-swwikin(Forked from Xzandro/sw-exporter)",
   "description": "This tool will parse intercepted data from Summoners War and extract information on the monsters and runes of the user.",
   "main": "./app/main.js",
   "scripts": {
@@ -13,7 +13,7 @@
     "lint": "eslint . --ext .js"
   },
   "build": {
-    "productName": "Summoners War Exporter",
+    "productName": "Summoners War Exporter【魔灵wiki】",
     "appId": "com.electron.sw-exporter",
     "artifactName": "${productName}-${version}-${os}.${ext}",
     "win": {
@@ -55,12 +55,11 @@
     ]
   },
   "keywords": [],
-  "author": "porksmash & Xzandro",
+  "author": "fishstormX",
   "license": "Apache-2.0",
-  "bugs": "https://github.com/Xzandro/sw-exporter/issues",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Xzandro/sw-exporter.git"
+    "url": "git@github.com:fishstormX/sw-exporter-swwiki.git"
   },
   "devDependencies": {
     "@babel/core": "^7.16.5",
