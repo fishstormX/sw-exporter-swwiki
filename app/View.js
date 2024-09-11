@@ -6,6 +6,7 @@ import Layout from './pages/Layout';
 import Logs from './pages/Logs';
 import Settings from './pages/Settings';
 import Help from './pages/Help';
+import Me from './pages/Me';
 
 ReactDOM.render(
   <BrowserRouter>
@@ -14,6 +15,7 @@ ReactDOM.render(
         <Route exact path="/" component={Logs} />
         <Route exact path="/settings" component={Settings} />
         <Route exact path="/help" component={Help} />
+        <Route exact path="/me" component={Me} />
         <Redirect to="/" />
       </Switch>
     </Layout>

@@ -37,30 +37,37 @@ let defaultConfig = {
     App: {
       filesPath: defaultFilePath,
       debug: false,
-      clearLogOnLogin: false,
+      clearLogOnLogin: true,
       maxLogEntries: 100,
       httpsMode: true,
       minimizeToTray: false,
-      autoUpdatePlugins: true,
+      autoUpdatePlugins: false,
     },
-    Proxy: { port: 8080, autoStart: false, steamMode: false },
+    Proxy: { port: 6666, autoStart: false, steamMode: true },
     Plugins: {},
+    Custom:{autoAsyncData:false},
+    Swwiki:{myid:'',myRealId:'',myInfo:{state:'尚未关联'}}
   },
 };
 let defaultConfigDetails = {
   ConfigDetails: {
-    App: {
-      debug: { label: 'Show Debug Messages' },
-      clearLogOnLogin: { label: 'Clear Log on every login' },
-      maxLogEntries: { label: 'Maximum amount of log entries.' },
-      httpsMode: { label: 'HTTPS mode' },
-      minimizeToTray: { label: 'Minimize to System Tray' },
-      autoUpdatePlugins: { label: 'Auto update plugins (if supported)' },
+    Custom:{
+      autoAsyncData:{ lebel:'自动同步数据',readOnly:false},
+      detailLog:{label:'展示游戏进程日志'}
     },
-    Proxy: { autoStart: { label: 'Start proxy automatically' }, steamMode: { label: 'Steam Mode' } },
+    App: {
+      debug: { label: '开启调试日志' },
+      clearLogOnLogin: { label: '登录时清空日志' },
+      maxLogEntries: { label: '最大日志数' },
+      httpsMode: { label: '开启HTTPS(不建议关闭)' },
+      minimizeToTray: { label: '最小化到系统托盘' },
+    },
+    Proxy: { autoStart: { label: '自动启动' },steamMode:{label:'steam模式'} },
     Plugins: {},
+    Swwiki:{}
   },
 };
+
 
 const updatedPluginsFolder = path.join(app.getPath('temp'), 'SWEX', 'plugins');
 
@@ -163,7 +170,6 @@ ipcMain.on('proxyStart', (event, steamMode) => {
     config.Config.Proxy.steamMode = steamMode;
     storage.set('Config', config.Config, (error) => {
       if (error) throw error;
-
       win.webContents.send('steamModeChanged', steamMode);
     });
   }
@@ -195,6 +201,31 @@ ipcMain.on('updateConfig', () => {
     if (error) throw error;
   });
 });
+ipcMain.on('myIdOk', async () => {
+  proxy.log({ type: 'success', source: '魔灵wiki', message: `关联微信小程序用户成功，用户id：${defaultConfig.Config.Swwiki.myid}，用户名: ${defaultConfig.Config.Swwiki.myInfo.userName}` });
+});
+
+ipcMain.on('myIdUnbindOk', async () => {
+  proxy.log({ type: 'success', source: '魔灵wiki', message: `微信小程序用户已解除关联~` });
+});
+
+ipcMain.on('myIdBad', async () => {
+  proxy.log({
+    type: 'error',
+    source: '魔灵wiki',
+    name: '用户识别异常',
+    message: '关联失败，未查询到小程序用户信息，请检查用户id！',
+  });
+});
+
+ipcMain.on('updateMyIdOverMain', async () => {
+  proxy.updateMyIdOk()
+ });
+ 
+ ipcMain.on('debuindMe', async () => {
+   proxy.updateMyIdOk()
+  });
+  
 
 ipcMain.on('getFolderLocations', (event) => {
   event.returnValue = {
@@ -228,7 +259,8 @@ function loadPlugins() {
       }
     });
   });
-
+  proxy.log({ type: 'success', source: '魔灵wiki', name: this.pluginName, message: '欢迎使用sw-exporter-魔灵wiki版，微信扫码访问小程序 <br> <img style="text-align:center" src="../assets/swwikicode.png" />'});
+ 
   // Initialize plugins
   plugins.forEach((plug) => {
     // try to parse JSON for textareas

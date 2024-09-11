@@ -14,7 +14,6 @@ const { differenceInMonths } = require('date-fns');
 const storage = require('electron-json-storage');
 const { addHostsEntries, getEntries, removeHostsEntries } = require('electron-hostile');
 const { exec } = require('child_process');
-
 const { decrypt_request, decrypt_response } = require('./smon_decryptor');
 
 const { promisify } = require('util');
@@ -31,7 +30,8 @@ class SWProxy extends EventEmitter {
     this.addresses = [];
 
     this.sensitiveCommands = ['BattleRTPvPStart', 'getRtpvpReplayData'];
-    this.sensitiveProperties = ['runes', 'artifacts', 'skills', 'replay_data'];
+    this.sensitiveProperties = ['runes', 'artifacts', 'skills', 'replay_data', 'session_key'];
+    this.sensitiveProperties4A = [ 'session_key'];
 
     this.steamproxy = steamproxy;
     this.proxiedHostnames = {
@@ -56,9 +56,8 @@ class SWProxy extends EventEmitter {
           { name: 'SWEX' }
         );
       } catch (error) {
-        this.log({ type: 'error', source: 'proxy', message: `Could not modify hosts file: ${error.message}` });
+        this.log({ type: 'error', source: 'proxy', message: `无法编辑hosts文件: ${error.message}` });
       }
-
       exec('ipconfig /flushdns');
 
       const proxyHost = '127.0.0.1';
@@ -76,7 +75,7 @@ class SWProxy extends EventEmitter {
 
     this.proxy.onError(function (ctx, e, errorKind) {
       if (e.code === 'EADDRINUSE') {
-        self.log({ type: 'warning', source: 'proxy', message: 'Port is in use from another process. Try another port.' });
+        self.log({ type: 'warning', source: 'proxy', message: '端口正在被占用，请稍后重试或者更换端口' });
       }
       // we do not show further errors here, since they are mostly meaningless regarding the proxy itself
     });
@@ -90,7 +89,7 @@ class SWProxy extends EventEmitter {
           ctx.SWRequestChunks.push(chunk);
           return callback(null, chunk);
         });
-
+       
         ctx.onResponseData(function (ctx, chunk, callback) {
           ctx.SWResponseChunks.push(chunk);
           return callback(null, chunk);
@@ -98,33 +97,25 @@ class SWProxy extends EventEmitter {
         ctx.onResponseEnd(function (ctx, callback) {
           let reqData;
           let respData;
-
           try {
-            reqData = decrypt_request(Buffer.concat(ctx.SWRequestChunks).toString());
-            respData = decrypt_response(Buffer.concat(ctx.SWResponseChunks).toString());
+              reqData = decrypt_request(Buffer.concat(ctx.SWRequestChunks).toString());
+              respData = decrypt_response(Buffer.concat(ctx.SWResponseChunks).toString());
+              const { command } = respData;
+              //安全考虑
+              self.removeSessionKey(respData);
+              if (config.Config.App.clearLogOnLogin && (command === 'HubUserLogin' || command === 'GuestLogin')) {
+                self.clearLogs();
+              }
+              let myid = (config.Config.Swwiki.myInfo && config.Config.Swwiki.myInfo.myid)?config.Config.Swwiki.myInfo.myid:-1;
+              respData.myid = myid
+              respData = self.checkSensitiveCommands(respData);
+              // Emit events, one for the specific API command and one for all commands
+              self.emit(command, reqData, respData);
+              self.emit('apiCommand', reqData, respData);
           } catch (e) {
             // Error decrypting the data, log and do not fire an event
-            self.log({ type: 'debug', source: 'proxy', message: `Error decrypting request data - ignoring. ${e}` });
-            return callback();
+            self.log({ type: '调试', source: 'proxy', message: `解密异常 - 【可忽略本消息】 ${e}` });
           }
-
-          const { command } = respData;
-          if (config.Config.App.clearLogOnLogin && (command === 'HubUserLogin' || command === 'GuestLogin')) {
-            self.clearLogs();
-          }
-
-          // populate req and resp with the server data if available
-          try {
-            respData = self.checkSensitiveCommands(respData);
-          } catch (error) {
-            // in some cases this might actually would not work if the data is not JSON
-            // thats why we need to catch it
-            console.error(e);
-          }
-
-          // Emit events, one for the specific API command and one for all commands
-          self.emit(command, reqData, respData);
-          self.emit('apiCommand', reqData, respData);
           return callback();
         });
       }
@@ -164,22 +155,23 @@ class SWProxy extends EventEmitter {
             : undefined,
       },
       async (e) => {
-        this.log({ type: 'info', source: 'proxy', message: `Now listening on port ${port}${steamMode ? ' in Steam Mode' : ''}` });
+        if(config.Config.Plugins.魔灵wiki.enabled){
+          this.log({ type: 'info', source: '通用', message: `${steamMode ? ' 【steam模式】' : '【普通模式】'} 代理已启动，使用端口： ${port}，【魔灵wiki】用户${config.Config.Swwiki.myInfo.state}` });
+        }else{
+          this.log({ type: 'info', source: '通用', message: `${steamMode ? ' 【steam模式】' : '【普通模式】'} 代理已启动，使用端口： ${port}，【魔灵wiki】插件未应用` });
+        }
         const expired = await this.checkCertExpiration();
 
         if (expired) {
           this.log({
             type: 'warning',
             source: 'proxy',
-            message: `Your certificate is older than ${CERT_MAX_LIFETIME_IN_MONTHS} months. If you experience connection issues, please regenerate a new one via the Settings.`,
+            message: `证书已经过期 ${CERT_MAX_LIFETIME_IN_MONTHS} . 若无法使用，请重新生成并安装证书`,
           });
         }
       }
     );
 
-    if (process.env.autostart) {
-      console.log(`SW Exporter Proxy is listening on port ${port}${steamMode ? ' in Steam Mode' : ''}`);
-    }
     win.webContents.send('proxyStarted');
   }
 
@@ -196,11 +188,11 @@ class SWProxy extends EventEmitter {
     try {
       await this.removeHostsModifications();
     } catch (error) {
-      this.log({ type: 'error', source: 'proxy', message: `Could not modify hosts file: ${error.message}` });
+      this.log({ type: 'error', source: 'proxy', message: `无法编辑hosts文件: ${error.message}` });
     }
 
     win.webContents.send('proxyStopped');
-    this.log({ type: 'info', source: 'proxy', message: 'Proxy stopped' });
+    this.log({ type: 'info', source: 'proxy', message: '代理已关闭' });
   }
 
   async removeHostsModifications() {
@@ -217,6 +209,19 @@ class SWProxy extends EventEmitter {
     );
 
     exec('ipconfig /flushdns');
+  }
+
+  removeSessionKey(data) {
+    if (!(data instanceof Object)) return data;
+    Object.keys(data).forEach((property) => {
+      if (this.sensitiveProperties4A.includes(property)) {
+        delete data[property];
+      } else if (data[property] instanceof Object) {
+        this.removeSessionKey(data[property]);
+      }
+    });
+
+    return data;
   }
 
   getInterfaces() {
@@ -282,7 +287,7 @@ class SWProxy extends EventEmitter {
     this.log({
       type: 'success',
       source: 'proxy',
-      message: `Certificate copied to ${exportPath}.`,
+      message: `证书已经拷贝至： ${exportPath}.`,
     });
     return exportPath;
   }
@@ -297,7 +302,7 @@ class SWProxy extends EventEmitter {
     this.log({
       type: 'success',
       source: 'proxy',
-      message: `Certificate copied to ${copyPath}.`,
+      message: `证书已经拷贝至： ${copyPath}.`,
     });
     return copyPath;
   }
@@ -355,6 +360,10 @@ class SWProxy extends EventEmitter {
     }
 
     win.webContents.send('logupdated', this.logEntries);
+  }
+
+  updateMyIdOk(){
+    win.webContents.send('updateMyIdOver');
   }
 
   getLogEntries() {
