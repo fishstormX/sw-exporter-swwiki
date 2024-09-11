@@ -19,7 +19,9 @@ import {
 
 const { ipcRenderer } = require('electron');
 const remote = require('@electron/remote');
-
+const requestLib = require('request');
+const SWWIKI_URL = 'https://fishmaple.cn/swc/usr/xx/AEE4CC7605A4/';
+let request = requestLib.defaults({ baseUrl: SWWIKI_URL });
 let config = remote.getGlobal('config');
 
 class Head extends React.Component {
@@ -29,6 +31,42 @@ class Head extends React.Component {
 
     Mousetrap.bind(['command+s', 'ctrl+s'], () => {
       this.toggleProxy();
+    });
+  }
+
+  changeMyId(e) {
+    config.Config.Swwiki.myid = e.target.value;
+  }
+
+  changeMyId2(e) {
+    let myid = config.Config.Swwiki.myid;
+    config.Config.Swwiki.myRealId = myid;
+    request.get(myid, (error, response, body) => {
+      if (!error) {
+        if (response.statusCode === 200) {
+          let acceptedLogCommands = JSON.parse(body);
+          if (acceptedLogCommands.code === 0) {
+            let myInfo = acceptedLogCommands.data;
+            config.Config.Swwiki.myInfo = {
+              state: '关联中',
+              userName: myInfo.userName,
+              avatarUrl: myInfo.avatarUrl,
+              p: myInfo.p,
+              vip: myInfo.vip,
+              myid: myid,
+            };
+            ipcRenderer.send('myIdOk');
+          } else {
+            config.Config.Swwiki.myInfo = { state: '尚未关联', userName: '-', avatarUrl: '-', p: '-', vip: '-', myid: '尚未关联' };
+            ipcRenderer.send('myIdBad');
+          }
+          ipcRenderer.send('updateMyIdOverMain');
+        } else {
+          ipcRenderer.send('myIdBad');
+        }
+      } else {
+        ipcRenderer.send('myIdBad');
+      }
     });
   }
 
@@ -100,51 +138,59 @@ class Head extends React.Component {
           </Menu.Item>
         )}
         <Menu.Item>
-          <Input label="Port" defaultValue={config.Config.Proxy.port} onChange={this.changePort.bind(this)} />
+          <Input label="端口" defaultValue={config.Config.Proxy.port} onChange={this.changePort.bind(this)} />
         </Menu.Item>
-
+        <Menu.Item>
+          <Input
+            className="normalInput2"
+            label="小程序用户id"
+            action={<Button content="关联" onClick={this.changeMyId2.bind(this)} />}
+            defaultValue={config.Config.Swwiki.myid}
+            onChange={this.changeMyId.bind(this)}
+          />
+        </Menu.Item>
         <Menu.Item position="right">
           {this.isSteamMode() && (
-            <Button content="Get & Install Cert (Steam)" icon="share" labelPosition="right" onClick={this.getAndInstallCertSteam.bind(this)} />
+            <Button content="安装证书 (Steam)(仅首次)" icon="share" labelPosition="right" onClick={this.getAndInstallCertSteam.bind(this)} />
           )}
-          <Button content="Get Cert" icon="share" labelPosition="right" onClick={this.getCert.bind(this)} />
+          <Button content="获取证书" icon="share" labelPosition="right" onClick={this.getCert.bind(this)} />
 
           {this.state.proxyRunning ? (
-            <Button content="Stop Proxy" icon="stop" labelPosition="right" onClick={this.toggleProxy.bind(this)} />
+            <Button content="关闭代理" icon="stop" labelPosition="right" onClick={this.toggleProxy.bind(this)} />
           ) : this.isWindows() ? (
             <Modal
               onClose={() => this.modalSetOpen(false)}
               onOpen={() => this.modalSetOpen(true)}
               open={this.state.modal}
               size="small"
-              trigger={<Button content="Start Proxy" icon="play" labelPosition="right" />}
+              trigger={<Button content="启动代理" icon="play" labelPosition="right" />}
             >
-              <ModalHeader>Select a proxy mode</ModalHeader>
+              <ModalHeader>选择模式</ModalHeader>
               <ModalContent>
                 <Segment placeholder>
                   <Grid columns={2} stackable textAlign="center">
-                    <Divider vertical>Or</Divider>
+                    <Divider vertical></Divider>
 
                     <GridRow verticalAlign="middle">
                       <GridColumn>
                         <Header icon>
                           <Icon name="game" />
-                          Steam Mode
+                          Steam模式
                         </Header>
-                        <p>Best mode if you plan to use with the Steam version of Summoners War.</p>
+                        <p>建议使用的方式，因为您无需手动配置代理和导入证书</p>
                         <Button primary onClick={() => this.startProxy(true)}>
-                          Start
+                          启动
                         </Button>
                       </GridColumn>
 
                       <GridColumn>
                         <Header icon>
                           <Icon name="world" />
-                          Remote Mode
+                          远程代理模式
                         </Header>
-                        <p>Default mode for anything else than the Steam version of SW, like your phone or emulators.</p>
+                        <p>区别于Steam模式，用于移动端代理或是模拟器等</p>
                         <Button primary onClick={() => this.startProxy(false)}>
-                          Start
+                          启动
                         </Button>
                       </GridColumn>
                     </GridRow>
@@ -153,7 +199,6 @@ class Head extends React.Component {
                     </GridRow>
                   </Grid>
                 </Segment>
-                <p>For further instructions, please go to the Help section.</p>
               </ModalContent>
             </Modal>
           ) : (

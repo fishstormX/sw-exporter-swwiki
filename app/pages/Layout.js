@@ -26,6 +26,10 @@ class Layout extends React.Component {
       this.navigate('help', 'help');
     });
 
+    Mousetrap.bind(['command+4', 'alt+4'], () => {
+      this.navigate('me', 'me');
+    });
+
     Mousetrap.bind(['command+b', 'ctrl+b'], () => {
       this.toggleCompactMode();
     });
@@ -52,7 +56,7 @@ class Layout extends React.Component {
           <Menu fixed="left" vertical inverted width="thin" className="side-menu">
             <Menu.Item name="logs" link active={this.state.activeItem === 'logs'} data-path="/" onClick={this.navigateFromElement.bind(this)}>
               <Icon name="home" />
-              Logs
+              运行日志
             </Menu.Item>
             <Menu.Item
               name="settings"
@@ -62,11 +66,15 @@ class Layout extends React.Component {
               onClick={this.navigateFromElement.bind(this)}
             >
               <Icon name="settings" />
-              Settings
+              设置
             </Menu.Item>
             <Menu.Item name="help" link active={this.state.activeItem === 'help'} data-path="help" onClick={this.navigateFromElement.bind(this)}>
               <Icon name="help circle" />
-              Help
+              帮助
+            </Menu.Item>
+            <Menu.Item name="me" link active={this.state.activeItem === 'me'} data-path="me" onClick={this.navigateFromElement.bind(this)}>
+              <Icon name="certificate" />
+              魔灵wiki
             </Menu.Item>
             <span id="version">v{appVersion}</span>
           </Menu>

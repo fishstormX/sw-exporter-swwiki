@@ -69,6 +69,12 @@ class SettingsItem extends React.Component {
           realValue = this.state.value instanceof Object ? JSON.stringify(this.state.value) : this.state.value;
         }
         return <Form.TextArea label={this.getLabel()} value={realValue} onChange={this.changeSetting.bind(this)} />;
+      case 'inlineInput':
+        return (
+          <Form.Field inline className="longInput">
+            <Form.Input className="longInput" label={this.getLabel()} value={this.state.value} onChange={this.changeSetting.bind(this)} fluid />
+          </Form.Field>
+        );
       default:
         return <Form.Input label={this.getLabel()} value={this.state.value} onChange={this.changeSetting.bind(this)} />;
     }
